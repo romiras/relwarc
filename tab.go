@@ -29,8 +29,6 @@ func (t *Tab) do(actions ...chromedp.Action) error {
 }
 
 // Navigate navigates current page to the given URL.
-//
-// TODO arguments but URL are ignored.
 func (t *Tab) Navigate(request *page.NavigateParams) error {
 	if request == nil {
 		request = &page.NavigateParams{
@@ -46,4 +44,16 @@ func (t *Tab) CaptureScreenshot(request *page.CaptureScreenshotParams) ([]byte, 
 		request = &page.CaptureScreenshotParams{}
 	}
 	return request.Do(t.executor())
+}
+
+// Location is an action that retrieves the document location.
+func (t *Tab) Location() (location string, err error) {
+	err = chromedp.EvaluateAsDevTools(`document.location.toString()`, &location).Do(t.executor())
+	return
+}
+
+// Title is an action that retrieves the document title.
+func (t *Tab) Title() (title string, err error) {
+	err = chromedp.EvaluateAsDevTools(`document.title`, &title).Do(t.executor())
+	return
 }
