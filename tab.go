@@ -57,3 +57,20 @@ func (t *Tab) Title() (title string, err error) {
 	err = chromedp.EvaluateAsDevTools(`document.title`, &title).Do(t.executor())
 	return
 }
+
+// WaitReady is an element query action that waits until the element matching
+// the selector is ready (ie, has been "loaded").
+func (t *Tab) WaitReady(sel interface{}, opts ...chromedp.QueryOption) error {
+	return chromedp.WaitReady(sel, opts...).Do(t.executor())
+}
+
+// EvaluateAsDevTools is an action that evaluates a Javascript expression as
+// Chrome DevTools would, evaluating the expression in the "console" context,
+// and making the Command Line API available to the script.
+//
+// See Evaluate for more information on how script expressions are evaluated.
+//
+// Note: this should not be used with untrusted Javascript.
+func (t *Tab) EvaluateAsDevTools(expression string, res interface{}, opts ...chromedp.EvaluateOption) error {
+	return chromedp.EvaluateAsDevTools(expression, res, opts...).Do(t.executor())
+}
