@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 
+	"github.com/chromedp/cdproto/network"
 	"github.com/chromedp/cdproto/target"
 	"github.com/chromedp/chromedp"
 )
@@ -42,13 +43,21 @@ func (r *Relwarc) NewBrowserAndTab() (*Browser, *Tab) {
 		panic(err)
 	}
 
+	// enable network by default.
+	if err := chromedp.Run(ctx, network.Enable()); err != nil {
+		panic(err)
+	}
+
 	tgt := chromedp.FromContext(ctx).Target
 
 	tab := Tab{
-		ctx:    ctx,
-		cancel: cancel,
-		target: tgt,
+		ctx:        ctx,
+		cancel:     cancel,
+		target:     tgt,
+		requestMap: map[network.RequestID]*Request{},
 	}
+
+	chromedp.ListenTarget(ctx, tab.onTargetEvent)
 
 	browser := Browser{
 		tabs: map[target.ID]*Tab{
@@ -85,5 +94,5 @@ var defaultExecAllocatorOptions = []chromedp.ExecAllocatorOption{
 	chromedp.Flag("enable-automation", true),
 	chromedp.Flag("password-store", "basic"),
 	chromedp.Flag("use-mock-keychain", true),
-	//chromedp.Flag("blink-settings", "imagesEnabled=false"),
+	chromedp.Flag("blink-settings", "imagesEnabled=false"),
 }
