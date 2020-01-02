@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/chromedp/cdproto/cdp"
+	"github.com/chromedp/cdproto/page"
 	"github.com/chromedp/chromedp"
 )
 
@@ -14,17 +15,35 @@ type Tab struct {
 	target *chromedp.Target
 }
 
+func (t *Tab) executor() context.Context {
+	return cdp.WithExecutor(t.ctx, t.target)
+}
+
 func (t *Tab) do(actions ...chromedp.Action) error {
-	ctx := cdp.WithExecutor(t.ctx, t.target)
 	for _, action := range actions {
-		if err := action.Do(ctx); err != nil {
+		if err := action.Do(t.executor()); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-// Navigate navigates to the URL at urlstr.
-func (t *Tab) Navigate(urlstr string) error {
-	return t.do(chromedp.Navigate(urlstr))
+// Navigate navigates current page to the given URL.
+//
+// TODO arguments but URL are ignored.
+func (t *Tab) Navigate(request *page.NavigateParams) error {
+	if request == nil {
+		request = &page.NavigateParams{
+			URL: "about:blank",
+		}
+	}
+	return t.do(chromedp.Navigate(request.URL))
+}
+
+// CaptureScreenshot capture page screenshot.
+func (t *Tab) CaptureScreenshot(request *page.CaptureScreenshotParams) ([]byte, error) {
+	if request == nil {
+		request = &page.CaptureScreenshotParams{}
+	}
+	return request.Do(t.executor())
 }

@@ -85,5 +85,5 @@ var defaultExecAllocatorOptions = []chromedp.ExecAllocatorOption{
 	chromedp.Flag("enable-automation", true),
 	chromedp.Flag("password-store", "basic"),
 	chromedp.Flag("use-mock-keychain", true),
-	chromedp.Flag("blink-settings", "imagesEnabled=false"),
+	//chromedp.Flag("blink-settings", "imagesEnabled=false"),
 }
