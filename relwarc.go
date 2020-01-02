@@ -42,12 +42,13 @@ func (r *Relwarc) NewBrowserAndTab() (*Browser, *Tab) {
 		panic(err)
 	}
 
+	tgt := chromedp.FromContext(ctx).Target
+
 	tab := Tab{
 		ctx:    ctx,
 		cancel: cancel,
+		target: tgt,
 	}
-
-	tgt := chromedp.FromContext(ctx).Target
 
 	browser := Browser{
 		tabs: map[target.ID]*Tab{
