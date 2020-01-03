@@ -2,9 +2,10 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
+	"reflect"
 
 	"github.com/chromedp/cdproto/page"
+	"github.com/chromedp/cdproto/runtime"
 )
 
 func main() {
@@ -19,24 +20,15 @@ func main() {
 		URL: "https://www.example.com",
 	})
 
-	png, err := tab1.CaptureScreenshot(nil)
-	if err != nil {
-		panic(err)
-	}
+	var out interface{}
 
-	if err := ioutil.WriteFile("screenshot.png", png, 0666); err != nil {
-		panic(err)
-	}
+	tab1.EvaluateAsDevTools(&runtime.EvaluateParams{
+		Expression: "window.close()",
+	}, &out)
 
-	location, err := tab1.Location()
-	if err != nil {
-		panic(err)
-	}
-	fmt.Println(location)
+	fmt.Println(out, reflect.TypeOf(out))
 
-	title, err := tab1.Title()
-	if err != nil {
-		panic(title)
-	}
-	fmt.Println(title)
+	//time.Sleep(time.Hour)
+
+	tab1.cancel()
 }

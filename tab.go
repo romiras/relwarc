@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"sync"
@@ -9,6 +10,7 @@ import (
 	"github.com/chromedp/cdproto/cdp"
 	"github.com/chromedp/cdproto/network"
 	"github.com/chromedp/cdproto/page"
+	"github.com/chromedp/cdproto/runtime"
 	"github.com/chromedp/chromedp"
 )
 
@@ -101,6 +103,64 @@ func (t *Tab) WaitReady(sel interface{}, opts ...chromedp.QueryOption) error {
 	return chromedp.WaitReady(sel, opts...).Do(t.executor())
 }
 
+// Evaluate is an action to evaluate the Javascript expression, unmarshaling
+// the result of the script evaluation to out.
+//
+// When out is a type other than *[]byte, or **chromedp/cdproto/runtime.RemoteObject,
+// then the result of the script evaluation will be returned "by value" (ie,
+// JSON-encoded), and subsequently an attempt will be made to json.Unmarshal
+// the script result to out.
+//
+// Otherwise, when out is a *[]byte, the raw JSON-encoded value of the script
+// result will be placed in out. Similarly, if out is a *runtime.RemoteObject,
+// then out will be set to the low-level protocol type, and no attempt will be
+// made to convert the result.
+//
+// If out is nil, the return value is ignored.
+//
+// Note: any exception encountered will be returned as an error.
+func (t *Tab) Evaluate(request *runtime.EvaluateParams, out interface{}) error {
+	if request == nil {
+		request = &runtime.EvaluateParams{}
+	}
+	if out == nil {
+		out = &out
+	}
+
+	switch out.(type) {
+	case **runtime.RemoteObject:
+	default:
+		request.ReturnByValue = true
+	}
+
+	object, exception, err := request.Do(t.executor())
+	if err != nil {
+		return err
+	}
+	if exception != nil {
+		return exception
+	}
+
+	switch x := out.(type) {
+	case **runtime.RemoteObject:
+		*x = object
+		return nil
+	case *[]byte:
+		*x = []byte(object.Value)
+		return nil
+	}
+
+	if object.Type == "undefined" {
+		// The unmarshal above would fail with the cryptic
+		// "unexpected end of JSON input" error, so try to give
+		// a better one here.
+		return fmt.Errorf("encountered an undefined value")
+	}
+
+	// unmarshal
+	return json.Unmarshal(object.Value, out)
+}
+
 // EvaluateAsDevTools is an action that evaluates a Javascript expression as
 // Chrome DevTools would, evaluating the expression in the "console" context,
 // and making the Command Line API available to the script.
@@ -108,8 +168,13 @@ func (t *Tab) WaitReady(sel interface{}, opts ...chromedp.QueryOption) error {
 // See Evaluate for more information on how script expressions are evaluated.
 //
 // Note: this should not be used with untrusted Javascript.
-func (t *Tab) EvaluateAsDevTools(expression string, res interface{}, opts ...chromedp.EvaluateOption) error {
-	return chromedp.EvaluateAsDevTools(expression, res, opts...).Do(t.executor())
+func (t *Tab) EvaluateAsDevTools(request *runtime.EvaluateParams, out interface{}) error {
+	if request == nil {
+		request = &runtime.EvaluateParams{}
+	}
+	request.ObjectGroup = "console"
+	request.IncludeCommandLineAPI = true
+	return t.Evaluate(request, out)
 }
 
 func (t *Tab) onTargetEvent(ev interface{}) {
