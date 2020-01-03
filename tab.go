@@ -77,6 +77,26 @@ func (t *Tab) Navigate(request *page.NavigateParams) error {
 	return t.do(chromedp.Navigate(request.URL))
 }
 
+// NavigateBack navigates the current frame backwards in its history.
+func (t *Tab) NavigateBack() error {
+	return chromedp.NavigateBack().Do(t.executor())
+}
+
+// NavigateForward navigates the current frame forwards in its history.
+func (t *Tab) NavigateForward() error {
+	return chromedp.NavigateForward().Do(t.executor())
+}
+
+// Reload reloads the current page.
+func (t *Tab) Reload() error {
+	return chromedp.Reload().Do(t.executor())
+}
+
+// Stop stops all navigation and pending resource retrieval.
+func (t *Tab) Stop() error {
+	return chromedp.Stop().Do(t.executor())
+}
+
 // CaptureScreenshot capture page screenshot.
 func (t *Tab) CaptureScreenshot(request *page.CaptureScreenshotParams) ([]byte, error) {
 	if request == nil {
