@@ -207,31 +207,40 @@ func (t *Tab) onTargetEvent(ev interface{}) {
 		t.withLockedRequests(func() {
 			// for redirected requests, they have the same request id.
 			// here we chain them. But the request maps is updated to the latest
-			// request in order to receive response events.
+			// request in order to receive response events correctly.
 			if parent, ok := t.requestMap[event.RequestID]; ok {
 				request.parent = parent
-				t.requestMap[event.RequestID] = request
-				t.requests = append(t.requests, request)
-			} else {
-				t.requestMap[event.RequestID] = request
-				t.requests = append(t.requests, request)
 			}
+			t.requestMap[event.RequestID] = request
+			t.requests = append(t.requests, request)
+			fmt.Println(event.RequestID, event.DocumentURL)
 		})
 	case *network.EventResponseReceived:
 		t.withLockedRequests(func() {
-			t.requestMap[event.RequestID].Response = event
+			if request, ok := t.requestMap[event.RequestID]; ok {
+				request.Response = event
+			}
 		})
 	case *network.EventLoadingFinished:
 		t.withLockedRequests(func() {
-			t.requestMap[event.RequestID].Finished = event
+			if request, ok := t.requestMap[event.RequestID]; ok {
+				request.Finished = event
+			}
 		})
 	case *network.EventLoadingFailed:
 		t.withLockedRequests(func() {
-			t.requestMap[event.RequestID].Failed = event
+			// Some requests like network failed don't have a request sent,
+			// but response events received. Before record what we received,
+			// do check if the request exists.
+			if request, ok := t.requestMap[event.RequestID]; ok {
+				request.Failed = event
+			}
 		})
 	case *network.EventDataReceived:
 		t.withLockedRequests(func() {
-			t.requestMap[event.RequestID].DataReceived = event
+			if request, ok := t.requestMap[event.RequestID]; ok {
+				request.DataReceived = event
+			}
 		})
 	}
 }
