@@ -1,16 +1,17 @@
-package main
+package relwarc
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"reflect"
 	"sync"
 
+	"github.com/chromedp/cdproto"
 	"github.com/chromedp/cdproto/cdp"
 	"github.com/chromedp/cdproto/network"
 	"github.com/chromedp/cdproto/page"
 	"github.com/chromedp/cdproto/runtime"
+	"github.com/chromedp/cdproto/target"
 	"github.com/chromedp/chromedp"
 )
 
@@ -27,9 +28,15 @@ type Tab struct {
 	requestMap   map[network.RequestID]*Request
 	lockRequests sync.Mutex
 
-	// If false, each time we navigate an URL,
-	// the requests will be cleared.
-	PreserveRequests bool
+	// MainDocumentLoaded is the first request sent.
+	mainDocumentLoaded chan *Request
+
+	MainRequest *Request
+}
+
+// Close closes this tab.
+func (t *Tab) Close() {
+	t.cancel()
 }
 
 // Request represents a network request and its response statuses.
@@ -62,19 +69,29 @@ func (t *Tab) do(actions ...chromedp.Action) error {
 }
 
 // Navigate navigates current page to the given URL.
-func (t *Tab) Navigate(request *page.NavigateParams) error {
-	if !t.PreserveRequests {
-		t.withLockedRequests(func() {
-			t.requests = t.requests[:0]
-			t.requestMap = make(map[network.RequestID]*Request)
-		})
-	}
+func (t *Tab) Navigate(request *page.NavigateParams, waitMainRequest bool) error {
+	t.withLockedRequests(func() {
+		t.requests = t.requests[:0]
+		t.requestMap = make(map[network.RequestID]*Request)
+	})
+
+	t.mainDocumentLoaded = make(chan *Request, 1)
+
 	if request == nil {
 		request = &page.NavigateParams{
 			URL: "about:blank",
 		}
 	}
-	return t.do(chromedp.Navigate(request.URL))
+
+	if err := t.do(chromedp.Navigate(request.URL)); err != nil {
+		return err
+	}
+
+	if waitMainRequest {
+		t.MainRequest = <-t.mainDocumentLoaded
+	}
+
+	return nil
 }
 
 // NavigateBack navigates the current frame backwards in its history.
@@ -198,7 +215,14 @@ func (t *Tab) EvaluateAsDevTools(request *runtime.EvaluateParams, out interface{
 }
 
 func (t *Tab) onTargetEvent(ev interface{}) {
-	fmt.Println(reflect.TypeOf(ev))
+	switch ev.(type) {
+	case *target.EventTargetInfoChanged:
+		return
+	case *cdproto.Message:
+		return
+	case *target.EventTargetDestroyed:
+		return
+	}
 	switch event := ev.(type) {
 	case *network.EventRequestWillBeSent:
 		request := &Request{
@@ -213,12 +237,25 @@ func (t *Tab) onTargetEvent(ev interface{}) {
 			}
 			t.requestMap[event.RequestID] = request
 			t.requests = append(t.requests, request)
-			fmt.Println(event.RequestID, event.DocumentURL)
 		})
 	case *network.EventResponseReceived:
 		t.withLockedRequests(func() {
 			if request, ok := t.requestMap[event.RequestID]; ok {
 				request.Response = event
+			}
+
+			if len(t.requests) == 1 {
+				if event.RequestID != t.requests[0].Request.RequestID {
+					panic("received: found no match request")
+				}
+				t.mainDocumentLoaded <- t.requests[0]
+				close(t.mainDocumentLoaded)
+			}
+		})
+	case *network.EventDataReceived:
+		t.withLockedRequests(func() {
+			if request, ok := t.requestMap[event.RequestID]; ok {
+				request.DataReceived = event
 			}
 		})
 	case *network.EventLoadingFinished:
@@ -235,11 +272,14 @@ func (t *Tab) onTargetEvent(ev interface{}) {
 			if request, ok := t.requestMap[event.RequestID]; ok {
 				request.Failed = event
 			}
-		})
-	case *network.EventDataReceived:
-		t.withLockedRequests(func() {
-			if request, ok := t.requestMap[event.RequestID]; ok {
-				request.DataReceived = event
+
+			// check if it is the docuemnt request (the first one).
+			if len(t.requests) == 1 {
+				if event.RequestID != t.requests[0].Request.RequestID {
+					panic("failed: found no match request")
+				}
+				t.mainDocumentLoaded <- t.requests[0]
+				close(t.mainDocumentLoaded)
 			}
 		})
 	}

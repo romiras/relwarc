@@ -1,4 +1,4 @@
-package main
+package relwarc
 
 import (
 	"context"
@@ -34,8 +34,8 @@ func (r *Relwarc) Close() {
 	r.cancel()
 }
 
-// NewBrowserAndTab creates a new browser and it's first tab.
-func (r *Relwarc) NewBrowserAndTab() (*Browser, *Tab) {
+// NewBrowser creates a new browser.
+func (r *Relwarc) NewBrowser() *Browser {
 	ctx, cancel := chromedp.NewContext(r.ctx)
 
 	// make sure a browser and its first tab are created.
@@ -60,12 +60,12 @@ func (r *Relwarc) NewBrowserAndTab() (*Browser, *Tab) {
 	chromedp.ListenTarget(ctx, tab.onTargetEvent)
 
 	browser := Browser{
-		tabs: map[target.ID]*Tab{
-			tgt.TargetID: &tab,
-		},
+		ctx:   ctx,
+		first: &tab,
+		tabs:  map[target.ID]*Tab{},
 	}
 
-	return &browser, &tab
+	return &browser
 }
 
 var defaultExecAllocatorOptions = []chromedp.ExecAllocatorOption{
